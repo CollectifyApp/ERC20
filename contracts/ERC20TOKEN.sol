@@ -19,7 +19,7 @@ contract ERC20TOKEN is ERC20, Ownable {
     }
 
     struct TimeZone {
-        uint8 offset;
+        int8 offset;
         string text;
     }
 
@@ -32,6 +32,8 @@ contract ERC20TOKEN is ERC20, Ownable {
         bytes32 merkleRoot;
         uint256 mintPrice;
         uint256 maxCountPerAddress;
+        uint256 maxSupply;
+        uint256 totalSupply;
         TimeZone timezone;
         MintTime privateMintTime;
         MintTime publicMintTime;
@@ -46,23 +48,11 @@ contract ERC20TOKEN is ERC20, Ownable {
         string memory name,
         string memory symbol,
         uint8 decimal,
-        uint256 _mintPrice,
-        uint256 _maxSupply,
-        uint256 _maxCountPerAddress,
-        TimeZone memory _timezone,
-        MintTime memory _privateMintTime,
-        MintTime memory _publicMintTime
+        uint256 _maxSupply
     ) ERC20(name, symbol) {
         maxSupply = _maxSupply;
         currentRound = 0;
         _decimals = decimal;
-        mintInfoList[currentRound].merkleRoot = 0x0;
-        mintInfoList[currentRound].mintPrice = _mintPrice;
-        mintInfoList[currentRound].maxCountPerAddress = _maxCountPerAddress;
-        mintInfoList[currentRound].timezone = _timezone;
-        mintInfoList[currentRound].privateMintTime = _privateMintTime;
-        mintInfoList[currentRound].publicMintTime = _publicMintTime;
-        mintInfoList[currentRound]._privateMintCount = 0;
     }
 
     function decimals() public view override returns (uint8) {
@@ -114,21 +104,23 @@ contract ERC20TOKEN is ERC20, Ownable {
         mintInfoList[round].publicMintTime = _publicMintTime;
     }
 
-    function changeMintInfo(uint256 round, bytes32 _merkleRoot, uint256 _mintPrice, uint256 _maxPerAddress, TimeZone memory _timezone, MintTime memory _publicMintTime, MintTime memory _privateMintTime) public onlyOwner {
+    function changeMintInfo(uint256 round, bytes32 _merkleRoot, uint256 _mintPrice, uint256 _maxPerAddress, uint256 _maxSupply, TimeZone memory _timezone, MintTime memory _publicMintTime, MintTime memory _privateMintTime) public onlyOwner {
         require(round <= currentRound, "round is greater than current round");
         mintInfoList[round].merkleRoot = _merkleRoot;
         mintInfoList[round].mintPrice = _mintPrice;
         mintInfoList[round].maxCountPerAddress = _maxPerAddress;
+        mintInfoList[round].maxSupply = _maxSupply;
         mintInfoList[round].timezone = _timezone;
         mintInfoList[round].publicMintTime = _publicMintTime;
         mintInfoList[round].privateMintTime = _privateMintTime;
     }
 
-    function createNewRound(bytes32 _merkleRoot, uint256 _mintPrice, uint256 _maxPerAddress, TimeZone memory _timezone, MintTime memory _publicMintTime, MintTime memory _privateMintTime) public onlyOwner {
+    function createNewRound(bytes32 _merkleRoot, uint256 _mintPrice, uint256 _maxPerAddress, uint256 _maxSupply, TimeZone memory _timezone, MintTime memory _publicMintTime, MintTime memory _privateMintTime) public onlyOwner {
         ++currentRound;
         mintInfoList[currentRound].merkleRoot = _merkleRoot;
         mintInfoList[currentRound].mintPrice = _mintPrice;
         mintInfoList[currentRound].maxCountPerAddress = _maxPerAddress;
+        mintInfoList[currentRound].maxSupply = _maxSupply;
         mintInfoList[currentRound].timezone = _timezone;
         mintInfoList[currentRound].publicMintTime = _publicMintTime;
         mintInfoList[currentRound].privateMintTime = _privateMintTime;
@@ -139,9 +131,11 @@ contract ERC20TOKEN is ERC20, Ownable {
         require(block.timestamp >= mintInfoList[round].privateMintTime.startAt && block.timestamp <= mintInfoList[round].privateMintTime.endAt, "error: 10000 time is not allowed");
         uint256 supply = totalSupply();
         require(supply + quantity <= maxSupply, "error: 10001 supply exceeded");
+        require(supply + quantity <= mintInfoList[round].maxSupply, "error: 10001 supply exceeded");
         require(mintInfoList[round].mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
         address claimAddress = _msgSender();
         require(!mintInfoList[round].privateClaimList[claimAddress], 'error:10003 already claimed');
+        require(quantity <= whiteQuantity, "error: 10004 quantity is not allowed");
         require(
             MerkleProof.verify(merkleProof, mintInfoList[round].merkleRoot, keccak256(abi.encodePacked(claimAddress, whiteQuantity))),
             'error:10004 not in the whitelist'
@@ -149,6 +143,7 @@ contract ERC20TOKEN is ERC20, Ownable {
         _mint( claimAddress, quantity );
         mintInfoList[round].privateClaimList[claimAddress] = true;
         mintInfoList[round]._privateMintCount = mintInfoList[round]._privateMintCount + quantity;
+        mintInfoList[round].totalSupply = mintInfoList[round].totalSupply + quantity;
     }
 
     function publicMint(uint256 round, uint256 quantity) external payable {
@@ -157,11 +152,13 @@ contract ERC20TOKEN is ERC20, Ownable {
         require(quantity <= mintInfoList[round].maxCountPerAddress, "error: 10004 max per address exceeded");
         uint256 supply = totalSupply();
         require(supply + quantity <= maxSupply, "error: 10001 supply exceeded");
+        require(supply + quantity <= mintInfoList[round].maxSupply, "error: 10001 supply exceeded");
         require(mintInfoList[round].mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
         address claimAddress = _msgSender();
         require(!mintInfoList[round].publicClaimList[claimAddress], 'error:10003 already claimed');
         _mint( claimAddress, quantity );
         mintInfoList[round].publicClaimList[claimAddress] = true;
+        mintInfoList[round].totalSupply = mintInfoList[round].totalSupply + quantity;
     }
 
     function airdrop(uint256 quantity, address to) external {
