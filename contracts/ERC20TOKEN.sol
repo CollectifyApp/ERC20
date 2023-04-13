@@ -131,7 +131,7 @@ contract ERC20TOKEN is ERC20, Ownable {
         require(block.timestamp >= mintInfoList[round].privateMintTime.startAt && block.timestamp <= mintInfoList[round].privateMintTime.endAt, "error: 10000 time is not allowed");
         uint256 supply = totalSupply();
         require(supply + quantity <= maxSupply, "error: 10001 supply exceeded");
-        require(supply + quantity <= mintInfoList[round].maxSupply, "error: 10001 supply exceeded");
+        require(mintInfoList[round].totalSupply + quantity <= mintInfoList[round].maxSupply, "error: 10001 supply exceeded");
         require(mintInfoList[round].mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
         address claimAddress = _msgSender();
         require(!mintInfoList[round].privateClaimList[claimAddress], 'error:10003 already claimed');
@@ -152,7 +152,7 @@ contract ERC20TOKEN is ERC20, Ownable {
         require(quantity <= mintInfoList[round].maxCountPerAddress, "error: 10004 max per address exceeded");
         uint256 supply = totalSupply();
         require(supply + quantity <= maxSupply, "error: 10001 supply exceeded");
-        require(supply + quantity <= mintInfoList[round].maxSupply, "error: 10001 supply exceeded");
+        require(mintInfoList[round].totalSupply + quantity <= mintInfoList[round].maxSupply, "error: 10001 supply exceeded");
         require(mintInfoList[round].mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
         address claimAddress = _msgSender();
         require(!mintInfoList[round].publicClaimList[claimAddress], 'error:10003 already claimed');
@@ -161,11 +161,6 @@ contract ERC20TOKEN is ERC20, Ownable {
         mintInfoList[round].totalSupply = mintInfoList[round].totalSupply + quantity;
     }
 
-    function airdrop(uint256 quantity, address to) external {
-        require(quantity <= maxSupply, "error: 10001 supply exceeded");
-        _mint( to, quantity );
-    }
-    
     function supportsInterface(bytes4 interfaceId)
         public
         view
