@@ -140,10 +140,10 @@ contract ERC20TOKEN is ERC20, Ownable {
             MerkleProof.verify(merkleProof, mintInfoList[round].merkleRoot, keccak256(abi.encodePacked(claimAddress, whiteQuantity))),
             'error:10004 not in the whitelist'
         );
-        _mint( claimAddress, quantity );
         mintInfoList[round].privateClaimList[claimAddress] = true;
         mintInfoList[round]._privateMintCount = mintInfoList[round]._privateMintCount + quantity;
         mintInfoList[round].totalSupply = mintInfoList[round].totalSupply + quantity;
+        _mint( claimAddress, quantity );
     }
 
     function publicMint(uint256 round, uint256 quantity) external payable {
@@ -156,9 +156,9 @@ contract ERC20TOKEN is ERC20, Ownable {
         require(mintInfoList[round].mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
         address claimAddress = _msgSender();
         require(!mintInfoList[round].publicClaimList[claimAddress], 'error:10003 already claimed');
-        _mint( claimAddress, quantity );
         mintInfoList[round].publicClaimList[claimAddress] = true;
         mintInfoList[round].totalSupply = mintInfoList[round].totalSupply + quantity;
+        _mint( claimAddress, quantity );
     }
 
     function supportsInterface(bytes4 interfaceId)
