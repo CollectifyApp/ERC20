@@ -12,6 +12,12 @@ contract ERC20TOKEN is ERC20, Ownable {
     uint256 public maxSupply;
     uint256 public currentRound;
     uint8 public _decimals;
+    Fee[] private fees;
+
+    struct Fee {
+        address destination;
+        uint256 payableercent;
+    }
 
     struct MintTime {
         uint64 startAt;
@@ -48,11 +54,15 @@ contract ERC20TOKEN is ERC20, Ownable {
         string memory name,
         string memory symbol,
         uint8 decimal,
-        uint256 _maxSupply
+        uint256 _maxSupply,
+        Fee[] memory _fees
     ) ERC20(name, symbol) {
         maxSupply = _maxSupply;
         currentRound = 0;
         _decimals = decimal;
+        for (uint256 i = 0; i < _fees.length; i++) {
+            fees.push(_fees[i]);
+        }
     }
 
     function decimals() public view override returns (uint8) {
@@ -68,6 +78,16 @@ contract ERC20TOKEN is ERC20, Ownable {
         );
     }
 
+    function feeInfo() public view returns (Fee[] memory) {
+        uint256 ownerFee = 10000;
+        Fee[] memory _fees = new Fee[](fees.length + 1);
+        for (uint256 i = 0; i < fees.length; i++) {
+            ownerFee = ownerFee - fees[i].payableercent;
+            _fees[i] = fees[i];
+        }
+        _fees[fees.length] = Fee(owner(), ownerFee);
+        return _fees;
+    }
 
     function changeMerkleRoot(uint256 round, bytes32 _merkleRoot) public onlyOwner {
         require(round <= currentRound, "round is greater than current round");
@@ -173,7 +193,11 @@ contract ERC20TOKEN is ERC20, Ownable {
 
     // This allows the contract owner to withdraw the funds from the contract.
     function withdraw(uint amt) external onlyOwner {
-        (bool sent, ) = payable(_msgSender()).call{value: amt}("");
-        require(sent, "GG: Failed to withdraw Ether");
+        require(amt <= address(this).balance, "GG: Insufficient balance");
+        Fee[] memory feeInfos = feeInfo();
+        for(uint256 i = 0; i < feeInfos.length; i++) {
+            (bool sent, ) = payable(feeInfos[i].destination).call{value: amt * feeInfos[i].payableercent / 10000}("");
+            require(sent, "GG: Failed to withdraw Ether");
+        }
     }
 }
